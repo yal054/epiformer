@@ -1,0 +1,704 @@
+#!/bin/python
+
+# pytorch
+import torch
+from torch import nn, optim
+import torch.nn.functional as F
+from torch.autograd import Variable
+from torch.utils.data import TensorDataset, DataLoader, random_split, Dataset, ConcatDataset
+from torchvision import transforms
+from torchvision import datasets
+
+## tqdm for loading bars
+from tqdm import tqdm
+# Setting the seed
+# PyTorch Lightning
+import pytorch_lightning as pl
+
+# hdf5 
+import h5py
+import hdf5plugin
+
+# computing
+import math
+import numpy as np
+from audtorch.metrics.functional import pearsonr
+from audtorch.metrics import PearsonR
+import sklearn.metrics as metrics
+from sklearn.metrics import accuracy_score, precision_score, recall_score, auc
+from sklearn.metrics import PrecisionRecallDisplay, RocCurveDisplay
+
+
+#########################
+# criterion
+
+#criterion = nn.MSELoss()
+#criterion = nn.MSELoss(reduction='none')
+
+#criterion = nn.PoissonNLLLoss(log_input=False)
+criterion = nn.PoissonNLLLoss(log_input=False, reduction='none')
+
+#criterion = nn.L1Loss(reduction='none')
+
+#criterion = nn.BCELoss()
+
+def BCELoss_class_weighted(weights):
+    def loss(input, target):
+        input = torch.clamp(input,min=1e-7,max=1-1e-7)
+        bce = - weights[1] * target * torch.log(input) - (1 - target) * weights[0] * torch.log(1 - input)
+        return torch.mean(bce)
+    return loss
+
+#criterion = BCELoss_class_weighted(weights=bce_weights) # add weight
+
+######################
+## metric
+
+metric = PearsonR(reduction='mean', batch_first=True)
+#metric = nn.CosineSimilarity(dim=1, eps=1e-6) # Cosine Similarity
+
+
+######################
+## optimizer
+
+#optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+#optimizer = optim.RAdam(model.parameters(), lr=learning_rate)
+
+
+##################
+### build model
+
+def exponential_linspace_int(start, end, num, divisible_by=1):
+    """Exponentially increasing values of integers."""
+    def _round(x):
+        return int(np.round(x / divisible_by) * divisible_by)
+
+    base = np.exp(np.log(end / start) / (num - 1))
+    return [_round(start * base**i) for i in range(num)]
+
+class Residual(nn.Module):
+    '''Residual Block'''
+    def __init__(self, module):
+        super().__init__()
+        self.module = module
+
+    def forward(self, inputs):
+        return self.module(inputs) + inputs
+
+class ConvBlock(nn.Module):
+    def __init__(self, 
+                 seq_len=98304, 
+                 bin_size=256, 
+                 embed_size=384*2,
+                 num_cnn_layer = 4
+                ):
+        super(ConvBlock, self).__init__()
+        self._model_name = "ConvBlock"
+        
+        C = embed_size # # of channels
+        
+        def conv_block(channels_init, channels, width=5, **kwargs):
+            return nn.Sequential(
+                nn.BatchNorm1d(num_features=channels_init),
+                nn.GELU(),
+                nn.Conv1d(in_channels=channels_init, out_channels=channels, kernel_size=width, **kwargs)
+            )
+        
+        # stem layer
+        self.stem = nn.Sequential(
+            nn.Conv1d(in_channels=4, out_channels=int(C // 2), kernel_size=15, dilation=1, padding=7),
+            Residual(conv_block(channels_init=int(C // 2), channels=int(C // 2), width=1)),
+            nn.MaxPool1d(kernel_size=2, stride=None)
+        )
+        
+        # get constant factor and channel nums
+        channel_list = exponential_linspace_int(start=int(C // 2), end=C,
+                                           num=num_cnn_layer+1, divisible_by=1)
+
+        # build conv tower
+        init_channel_list = channel_list[:-1]  
+        trg_channel_list = channel_list[1:]
+        
+        module = []
+        for channels_init, channels in zip(init_channel_list, trg_channel_list): 
+            module.append(
+                nn.Sequential(
+                    conv_block(channels_init, channels, width=5, dilation=1, padding=2),
+                    Residual(conv_block(channels_init=channels, channels=channels, width=1)),
+                    nn.MaxPool1d(kernel_size=2, stride=None)
+                )
+            )
+
+        self.tower = nn.Sequential(*module)
+
+    def forward(self, x):
+        '''stem'''
+        out = self.stem(x)
+        #print(out.shape)
+        '''tower'''
+        out = self.tower(out) # (batch, channel, seq)
+        #print(out.shape)
+        # switch shape: (batch, seq, feature)
+        #out = out.view(out.shape[0], 312, 312).transpose(1,2)
+        return out
+
+
+# build from MultiheadAttention
+class EncoderBlock(nn.Module):
+    def __init__(self,
+                 embed_size = 312,
+                 num_heads = 4,
+                 att_dropout = 0.05,
+                 dim_feedforward = 2048,
+                 enc_dropout = 0.4,
+                 batch_first = True):
+        super(EncoderBlock, self).__init__()
+
+        self.mha = nn.MultiheadAttention(embed_size,
+                                         num_heads,
+                                         dropout=att_dropout,
+                                         batch_first=batch_first)
+
+        # Two-layer MLP
+        self.linear_net = nn.Sequential(
+            nn.Linear(embed_size, dim_feedforward),
+            nn.Dropout(enc_dropout),
+            nn.GELU(),
+            nn.Linear(dim_feedforward, embed_size)
+        )
+
+        # Layers to apply in between the main layers
+        self.norm1 = nn.LayerNorm(embed_size)
+        self.norm2 = nn.LayerNorm(embed_size)
+        self.dropout = nn.Dropout(enc_dropout)
+
+    def forward(self, x, return_attention=False):
+        # Attention part
+        attn_out, attn_weights = self.mha(x, x, x)
+        x = x + self.dropout(attn_out)
+        x = self.norm1(x)
+
+        # MLP part
+        linear_out = self.linear_net(x)
+        x = x + self.dropout(linear_out)
+        x = self.norm2(x)
+
+        if return_attention:
+            return x, attn_weights
+        else:
+            return x
+        
+class TransformerEncoder(nn.Module):
+
+    def __init__(self,
+                 embed_size = 312,
+                 num_heads = 4,
+                 att_dropout = 0.05,
+                 dim_feedforward = 2048,
+                 enc_dropout = 0.05,
+                 batch_first = True,
+                 num_encoder_layers = 6,
+                ):
+        super().__init__()
+
+        self.layers = nn.ModuleList([EncoderBlock(embed_size,
+                                                  num_heads,
+                                                  att_dropout,
+                                                  dim_feedforward,
+                                                  enc_dropout,
+                                                  batch_first
+        ) for _ in range(num_encoder_layers)])
+
+    def forward(self, x):
+        # take input shape: (batch, seq, feature)
+        for l in self.layers:
+            x = l(x)
+        return x
+
+    def get_attention_maps(self, x):
+        attention_maps = []
+        for l in self.layers:
+            _, attn_map = l.mha(x, return_attention=True)
+            attention_maps.append(attn_map)
+            x = l(x)
+        return attention_maps
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, max_len=312):
+        """
+        Inputs
+            d_model - Hidden dimensionality of the input.
+            max_len - Maximum length of a sequence to expect.
+        """
+        super().__init__()
+
+        # Create matrix of [SeqLen, HiddenDim] representing the positional encoding for max_len inputs
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+
+        # register_buffer => Tensor which is not a parameter, but should be part of the modules state.
+        # Used for tensors that need to be on the same device as the module.
+        # persistent=False tells PyTorch to not add the buffer to the state dict (e.g. when we save the model)
+        self.register_buffer('pe', pe, persistent=False)
+
+    def forward(self, x):
+        x = x + self.pe[:, :x.size(1)]
+        return x
+
+
+
+class PointwiseSignalBlock(nn.Module):
+    def __init__(self, 
+                 crop_size = 64,
+                 ptw_in_dim=384*2,
+                 ptw_dropout=0.05,
+                 multiout_dim = 20
+                ):
+        super(PointwiseSignalBlock, self).__init__()
+        self._model_name = "PointwiseSignalBlock"
+        self.crop_size = crop_size
+        
+        # conv layer
+        self.conv = nn.Sequential(
+            nn.BatchNorm1d(num_features=ptw_in_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=ptw_in_dim, out_channels=ptw_in_dim * 2, kernel_size=1, dilation=1),
+            nn.Dropout(ptw_dropout)
+        )
+        
+        self.linear = nn.Sequential(
+            nn.Linear(in_features=ptw_in_dim * 2, out_features=multiout_dim),
+            nn.Dropout(ptw_dropout),
+            nn.Softplus()
+        )
+    
+    # crop layer
+    def center_crop(self, x):
+        height = x.shape[1]
+        width = x.shape[2] - (self.crop_size * 2)
+        crop_h = torch.FloatTensor([x.size()[1]]).sub(height).div(-2)
+        crop_w = torch.FloatTensor([x.size()[2]]).sub(width).div(-2)
+        return F.pad(x, [
+            crop_w.ceil().int()[0], crop_w.floor().int()[0],
+            crop_h.ceil().int()[0], crop_h.floor().int()[0],
+        ])
+        
+    def forward(self, x):
+        # take input shape: (batch, channel, seq)
+        x = self.center_crop(x) # crop
+        # conv
+        x = self.conv(x)
+        # linear
+        x = x.transpose(1,2) # convert to (batch, seq, channel)
+        out = self.linear(x)
+        out = out.transpose(1,2)
+        return out
+
+
+
+class PointwiseSignalBlock_BK(nn.Module):
+    def __init__(self, 
+                 crop_size = 64,
+                 ptw_in_dim=384*2,
+                 ptw_dropout=0.05,
+                 multiout_dim = 20
+                ):
+        super(PointwiseSignalBlock, self).__init__()
+        self._model_name = "PointwiseSignalBlock"
+        self.crop_size = crop_size
+        
+        # conv layer
+        self.conv = nn.Sequential(
+            nn.BatchNorm1d(num_features=ptw_in_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=ptw_in_dim, out_channels=multiout_dim * 2, kernel_size=1, dilation=1),
+            nn.Dropout(ptw_dropout)
+        )
+        
+        self.linear = nn.Sequential(
+            nn.Linear(in_features=multiout_dim * 2, out_features=multiout_dim),
+            nn.Dropout(ptw_dropout),
+            nn.Softplus()
+        )
+    
+    # crop layer
+    def center_crop(self, x):
+        height = x.shape[1]
+        width = x.shape[2] - (self.crop_size * 2)
+        crop_h = torch.FloatTensor([x.size()[1]]).sub(height).div(-2)
+        crop_w = torch.FloatTensor([x.size()[2]]).sub(width).div(-2)
+        return F.pad(x, [
+            crop_w.ceil().int()[0], crop_w.floor().int()[0],
+            crop_h.ceil().int()[0], crop_h.floor().int()[0],
+        ])
+        
+    def forward(self, x):
+        # take input shape: (batch, channel, seq)
+        x = self.center_crop(x) # crop
+        # conv
+        x = self.conv(x)
+        # linear
+        x = x.transpose(1,2) # convert to (batch, seq, channel)
+        out = self.linear(x)
+        out = out.transpose(1,2)
+        return out
+
+
+
+class PointwiseSignalBlock_Conv(nn.Module):
+    def __init__(self, 
+                 crop_size = 64,
+                 ptw_in_dim=384*2,
+                 ptw_dropout=0.05,
+                 multiout_dim = 20
+                ):
+        super(PointwiseSignalBlock, self).__init__()
+        self._model_name = "PointwiseSignalBlock"
+        self.crop_size = crop_size
+        
+        # conv layer
+        self.conv = nn.Sequential(
+            nn.Conv1d(in_channels=ptw_in_dim, out_channels=multiout_dim * 2, kernel_size=1, dilation=1),
+            nn.BatchNorm1d(num_features=multiout_dim * 2),
+            nn.Dropout(ptw_dropout),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=multiout_dim * 2, out_channels=multiout_dim, kernel_size=1, dilation=1),
+            nn.BatchNorm1d(num_features=multiout_dim),
+            nn.Dropout(ptw_dropout),
+            nn.Softplus()
+        )
+    
+    # crop layer
+    def center_crop(self, x):
+        height = x.shape[1]
+        width = x.shape[2] - (self.crop_size * 2)
+        crop_h = torch.FloatTensor([x.size()[1]]).sub(height).div(-2)
+        crop_w = torch.FloatTensor([x.size()[2]]).sub(width).div(-2)
+        return F.pad(x, [
+            crop_w.ceil().int()[0], crop_w.floor().int()[0],
+            crop_h.ceil().int()[0], crop_h.floor().int()[0],
+        ])
+        
+    def forward(self, x):
+        # take input shape: (batch, channel, seq)
+        x = self.center_crop(x) # crop
+        out = self.conv(x)
+        return out
+
+
+class PointwiseSignalBlock_Linear(nn.Module):
+    def __init__(self, 
+                 crop_size = 64,
+                 ptw_in_dim=384*2,
+                 ptw_dropout=0.05,
+                 multiout_dim = 20
+                ):
+        super(PointwiseSignalBlock, self).__init__()
+        self._model_name = "PointwiseSignalBlock"
+        self.crop_size = crop_size
+        
+        # signal layer
+        self.signal = nn.Sequential(
+            nn.Linear(in_features=ptw_in_dim, out_features=multiout_dim * 2),
+            nn.Dropout(ptw_dropout),
+            nn.ReLU(inplace=True),
+            nn.Linear(in_features=multiout_dim * 2, out_features=multiout_dim),
+            nn.Dropout(ptw_dropout),
+            #nn.ReLU(inplace=True)
+            nn.Softplus()
+        )
+    
+    # crop layer
+    def center_crop(self, x):
+        height = x.shape[1]
+        width = x.shape[2] - (self.crop_size * 2)
+        crop_h = torch.FloatTensor([x.size()[1]]).sub(height).div(-2)
+        crop_w = torch.FloatTensor([x.size()[2]]).sub(width).div(-2)
+        return F.pad(x, [
+            crop_w.ceil().int()[0], crop_w.floor().int()[0],
+            crop_h.ceil().int()[0], crop_h.floor().int()[0],
+        ])
+        
+    def forward(self, x):
+        # take input shape: (batch, channel, seq)
+        x = self.center_crop(x) # crop
+        # convert to (batch, seq, channel)
+        x = x.transpose(1,2)
+        out = self.signal(x)
+        out = out.transpose(1,2)
+        return out
+
+
+
+
+class PointwiseLabelBlock(nn.Module):
+    def __init__(self,
+                 crop_size = 64,
+                 ptw_in_dim=384*2,
+                 cls_dropout=0.05,
+                 multiout_dim = 20
+                ):
+        super(PointwiseLabelBlock, self).__init__()
+        self._model_name = "PointwiseLabelBlock"
+        self.crop_size = crop_size
+
+        # conv layer
+        self.conv = nn.Sequential(
+            nn.BatchNorm1d(num_features=ptw_in_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=ptw_in_dim, out_channels=ptw_in_dim * 2, kernel_size=1, dilation=1),
+            nn.Dropout(cls_dropout)
+        )
+        
+        # linear layer
+        self.linear = nn.Sequential(
+            nn.Linear(in_features=ptw_in_dim * 2, out_features=multiout_dim),
+            nn.Dropout(cls_dropout),
+            nn.Sigmoid()
+        )
+
+    # crop layer
+    def center_crop(self, x):
+        height = x.shape[1]
+        width = x.shape[2] - (self.crop_size * 2)
+        crop_h = torch.FloatTensor([x.size()[1]]).sub(height).div(-2)
+        crop_w = torch.FloatTensor([x.size()[2]]).sub(width).div(-2)
+        return F.pad(x, [
+            crop_w.ceil().int()[0], crop_w.floor().int()[0],
+            crop_h.ceil().int()[0], crop_h.floor().int()[0],
+        ])
+
+    def forward(self, x):
+        # take input shape: (batch, channel, seq)
+        x = self.center_crop(x) # crop
+        # conv
+        x = self.conv(x)
+        # linear
+        x = x.transpose(1,2) # convert to (batch, seq, channel)
+        label = self.linear(x)
+        label = label.transpose(1,2)
+        #print(out.shape)
+        return label
+
+
+
+class PointwiseLabelBlock_BK(nn.Module):
+    def __init__(self, 
+                 crop_size = 64,
+                 ptw_in_dim=384*2,
+                 cls_dropout=0.05,
+                 multiout_dim = 20
+                ):
+        super(PointwiseLabelBlock, self).__init__()
+        self._model_name = "PointwiseLabelBlock"
+        self.crop_size = crop_size
+        
+        # class layer
+        self.cls = nn.Sequential(
+            nn.Linear(in_features=ptw_in_dim, out_features=multiout_dim * 2),
+            nn.Dropout(cls_dropout),
+            nn.ReLU(inplace=True),
+            nn.Linear(in_features=multiout_dim * 2, out_features=multiout_dim),
+            nn.Dropout(cls_dropout),
+            nn.Sigmoid()
+        )
+        
+    # crop layer
+    def center_crop(self, x):
+        height = x.shape[1]
+        width = x.shape[2] - (self.crop_size * 2)
+        crop_h = torch.FloatTensor([x.size()[1]]).sub(height).div(-2)
+        crop_w = torch.FloatTensor([x.size()[2]]).sub(width).div(-2)
+        return F.pad(x, [
+            crop_w.ceil().int()[0], crop_w.floor().int()[0],
+            crop_h.ceil().int()[0], crop_h.floor().int()[0],
+        ])
+        
+    def forward(self, x):
+        # take input shape: (batch, channel, seq)
+        # crop input
+        x = self.center_crop(x)
+        # convert to (batch, seq, channel)
+        x = x.transpose(1,2)
+        label = self.cls(x)
+        label = label.transpose(1,2)
+        #print(out.shape)
+        return label
+
+
+def center_crop(x, height, width):
+    crop_h = torch.FloatTensor([x.size()[1]]).sub(height).div(-2)
+    crop_w = torch.FloatTensor([x.size()[2]]).sub(width).div(-2)
+    
+    return F.pad(x, [
+        crop_w.ceil().int()[0], crop_w.floor().int()[0],
+        crop_h.ceil().int()[0], crop_h.floor().int()[0],
+    ])
+
+
+class SelfTrans_labelOUT(nn.Module):
+    def __init__(
+        self,
+        seq_len=98304,
+        bin_size=256,
+        num_cnn_layer = 7,
+        max_len = 384,
+        add_positional_encoding = True,
+        embed_size = 384*2,
+        num_heads = 4,
+        att_dropout = 0.4,
+        dim_feedforward = 1024,
+        enc_dropout = 0.2,
+        batch_first = True,
+        num_encoder_layers = 8,
+        crop_size = 64,
+        cls_dropout = 0.2,
+        multiout_dim = 20
+    ):
+
+        super(SelfTrans_labelOUT, self).__init__()
+        self.embedding_size = embed_size
+        self.ptw_in_dim = self.embedding_size
+        self.cls_in_dim = self.embedding_size
+        self.add_positional_encoding = add_positional_encoding
+
+        # Conv
+        self.conv = ConvBlock(
+                 seq_len,
+                 bin_size,
+                 embed_size,
+                 num_cnn_layer
+        )
+
+        # Positional encoding for sequences
+        self.positional_encoding = PositionalEncoding(embed_size, max_len)
+
+        # Transformer encoder
+        self.trans = TransformerEncoder(
+                 embed_size,
+                 num_heads,
+                 att_dropout,
+                 dim_feedforward,
+                 enc_dropout,
+                 #activation,
+                 batch_first,
+                 num_encoder_layers
+        )
+        
+        # Pointwise
+        self.ptw = PointwiseLabelBlock(
+                 crop_size,
+                 self.ptw_in_dim,
+                 cls_dropout,
+                 multiout_dim
+        )
+
+    def forward(self, src):
+        conv_out = self.conv(src)
+        conv_out = conv_out.transpose(1,2) # reshape input to: (batch, seq, feature)
+        #print(conv_out.shape)
+        
+        # potional encoding
+        if self.add_positional_encoding:
+            conv_out = self.positional_encoding(conv_out)
+            #print(conv_out.shape)
+            
+        # transformer
+        trans_out = self.trans(conv_out)
+        trans_out = trans_out.transpose(1,2) # reshape input to: (batch, channel, seq)
+        #print(trans_out.shape)
+
+        # pred signal & class
+        label = self.ptw(trans_out)
+        #print(out.shape)
+        #print(label.shape)
+        
+        return label
+
+
+
+class SelfTrans_signalOUT(nn.Module):
+    def __init__(
+        self,
+        seq_len=98304,
+        bin_size=256,
+        num_cnn_layer = 7,
+        max_len = 384,
+        add_positional_encoding = True,
+        embed_size = 384*2,
+        num_heads = 4,
+        att_dropout = 0.4,
+        dim_feedforward = 1024,
+        enc_dropout = 0.2,
+        batch_first = True,
+        num_encoder_layers = 8,
+        crop_size = 64,
+        ptw_dropout = 0.2,
+        multiout_dim = 13
+    ):
+
+        super(SelfTrans_signalOUT, self).__init__()
+        self.embedding_size = embed_size
+        self.ptw_in_dim = self.embedding_size
+        self.cls_in_dim = self.embedding_size
+        self.add_positional_encoding = add_positional_encoding
+
+        # Conv
+        self.conv = ConvBlock(
+                 seq_len,
+                 bin_size,
+                 embed_size,
+                 num_cnn_layer
+        )
+
+        # Positional encoding for sequences
+        self.positional_encoding = PositionalEncoding(embed_size, max_len)
+
+        # Transformer encoder
+        self.trans = TransformerEncoder(
+                 embed_size,
+                 num_heads,
+                 att_dropout,
+                 dim_feedforward,
+                 enc_dropout,
+                 #activation,
+                 batch_first,
+                 num_encoder_layers
+        )
+        
+        # Pointwise
+        self.ptw = PointwiseSignalBlock(
+                 crop_size,
+                 self.ptw_in_dim,
+                 ptw_dropout,
+                 multiout_dim
+        )
+
+    def forward(self, src):
+        conv_out = self.conv(src)
+        #print("conv_out", conv_out.shape)
+        conv_out = conv_out.transpose(1,2) # reshape input to: (batch, seq, feature)
+        #print("conv_out_transpose", conv_out.shape)
+        
+        # potional encoding
+        if self.add_positional_encoding:
+            conv_out = self.positional_encoding(conv_out)
+            #print("positional", conv_out.shape)
+            
+        # transformer
+        trans_out = self.trans(conv_out)
+        #print("trans", trans_out.shape)
+        trans_out = trans_out.transpose(1,2) # reshape input to: (batch, channel, seq)
+        #print("trans_transpose", trans_out.shape)
+
+        # pred signal & class
+        out = self.ptw(trans_out)
+        #print("out", out.shape)
+
+        return out
+

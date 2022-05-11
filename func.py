@@ -54,7 +54,8 @@ class HDF5Dataset(Dataset):
     def __init__(self, 
                  h5_path, 
                  preprocess=False,
-                 if_log2=False
+                 if_log2=False,
+                 which = None
                 ):
         self.h5_path = h5_path
         self.hf = h5py.File(h5_path, 'r')
@@ -65,6 +66,7 @@ class HDF5Dataset(Dataset):
                          'T': 3} # convert to one-hot
         self.preprocess = preprocess
         self.if_log2 = if_log2
+        self.which = which
         
         if self.preprocess:
             self.data = [self.getitem_fromraw(index) for index in tqdm(range(self.__len__()))]
@@ -102,10 +104,18 @@ class HDF5Dataset(Dataset):
         if self.if_log2:
             signal = np.log2(signal, out=np.copy(signal), where=(signal>1))
         #signal = np.float32(np.log2(signal+1))
-        data_obj["signal"] = signal
+        
+        if self.which:
+            data_obj["signal"] = np.expand_dims(signal[self.which, :], axis=0)
+        else:
+            data_obj["signal"] = signal
             
         label = self.hf['targets/label'][index]
-        data_obj["label"] = label
+        
+        if self.which:
+            data_obj["label"] = np.expand_dims(label[self.which, :], axis=0)
+        else:
+            data_obj["label"] = label
 
         return data_obj
 
@@ -117,7 +127,11 @@ class HDF5Dataset(Dataset):
 
     def __len__(self):
         return self.length
-    
+
+ 
+# get file list
+def get_filepaths(root_path: str, file_regex: str):
+    return glob.glob(os.path.join(root_path, file_regex)) 
     
 # get file list
 def get_filepaths(root_path: str, file_regex: str):

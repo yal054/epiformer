@@ -36,7 +36,7 @@ dim_feedforward = 2048
 enc_dropout = 0.4 
 batch_first = True
 num_encoder_layers = 8
-crop_size = 0
+crop_size = 32
 ptw_dropout = 0.1
 multiout_dim = 1 # 20
 
@@ -47,7 +47,7 @@ penalty = 0
 celltype_list = ["ASC", "Endo", "L2_3_IT", "L4_5_IT", "L5_6_NP", "L5_ET", "L5_IT", "L6b", "L6_CT", "L6_IT_CAR3", "L6_IT", "LAMP5", "MGC", "OGC", "OPC", "PVALB", "SNCG", "SST", "VIP", "VLMC"]
 celltype_index = 12
 
-# device_ids = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+#device_ids = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 device_ids = [0, 1, 2, 3]
 
 TRAIN_PCT = 0.8
@@ -208,9 +208,9 @@ for epoch in range(num_epoches):
         
         outs = model(inputs)
         
-        # crop 64 bins from each side
-        #outs = outs[:, :, 64:-64]
-        #targets = targets[:, :, 64:-64]
+        if crop_size > 0:
+            crop_seq_size = targets.shape[2] - (crop_size * 2)
+            targets = center_crop(targets, targets.shape[1], crop_seq_size)
 
         loss = criterion(outs, targets)
         
@@ -259,10 +259,10 @@ for epoch in range(num_epoches):
         
         # testing
         outputs= model.forward(sequences)
-        
-        # crop 64 bins from each side
-        #outputs = outputs[:, :, 64:-64]
-        #signals = signals[:, :, 64:-64]
+       
+        if crop_size > 0:
+            crop_seq_size = signals.shape[2] - (crop_size * 2)
+            signals = center_crop(signals, signals.shape[1], crop_seq_size) 
         
         test_loss = criterion(outputs, signals)
         

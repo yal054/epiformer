@@ -610,3 +610,13 @@ def extract_data(region4pred,
     
     return data_obj
 
+
+def center_crop(x, height, width):
+    crop_h = torch.FloatTensor([x.size()[1]]).sub(height).div(-2)
+    crop_w = torch.FloatTensor([x.size()[2]]).sub(width).div(-2)
+
+    return F.pad(x, [
+        crop_w.ceil().int()[0], crop_w.floor().int()[0],
+        crop_h.ceil().int()[0], crop_h.floor().int()[0],
+    ])
+

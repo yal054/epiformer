@@ -15,34 +15,34 @@ import time
 from time import perf_counter as pc
 
 # Training hyperparameters
-num_epoches = 20
+num_epoches = 50
 learning_rate = 1e-5
 min_lr = 1e-6
 
-batch_size = 8 # using 4 GPUs
+batch_size = 4 # using 4 GPUs
 warmup_epoches = 10
 max_iter_epoches = 50
 
 # Model hyperparameters
 seq_len = 98304
-bin_size = 256
-num_cnn_layer = 7
-max_len = 384
+bin_size = 128
+num_cnn_layer = 6
+max_len = 384 * 2 
 add_positional_encoding = True
 embed_size = 384 * 2
 num_heads = 4
-att_dropout = 0.1
-dim_feedforward = 1024 
-enc_dropout = 0.1 
+att_dropout = 0.4
+dim_feedforward = 2048 
+enc_dropout = 0.4 
 batch_first = True
 num_encoder_layers = 8
-crop_size = 0
-ptw_dropout = 0.05
+crop_size = 32
+ptw_dropout = 0.1
 multiout_dim = 20
 
 if_augment = True
 if_cons = True
-penalty = 10
+penalty = 0
 
 # device_ids = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 device_ids = [0, 1, 2, 3]
@@ -205,9 +205,9 @@ for epoch in range(num_epoches):
         
         outs = model(inputs)
         
-        # crop 64 bins from each side
-        #outs = outs[:, :, 64:-64]
-        #targets = targets[:, :, 64:-64]
+        if crop_size > 0:
+            crop_seq_size = targets.shape[2] - (crop_size * 2)
+            targets = center_crop(targets, targets.shape[1], crop_seq_size)
 
         loss = criterion(outs, targets)
         
@@ -257,9 +257,9 @@ for epoch in range(num_epoches):
         # testing
         outputs= model.forward(sequences)
         
-        # crop 64 bins from each side
-        #outputs = outputs[:, :, 64:-64]
-        #signals = signals[:, :, 64:-64]
+        if crop_size > 0:
+            crop_seq_size = signals.shape[2] - (crop_size * 2)
+            signals = center_crop(signals, signals.shape[1], crop_seq_size) 
         
         test_loss = criterion(outputs, signals)
         

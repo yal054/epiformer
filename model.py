@@ -839,7 +839,6 @@ class SelfTrans_labelOUT(nn.Module):
         return label
 
 
-
 class SelfTrans_signalOUT(nn.Module):
     def __init__(
         self,
@@ -857,7 +856,8 @@ class SelfTrans_signalOUT(nn.Module):
         num_encoder_layers = 8,
         crop_size = 64,
         ptw_dropout = 0.2,
-        multiout_dim = 13
+        multiout_dim = 13,
+        recycle_count = 1,
     ):
 
         super(SelfTrans_signalOUT, self).__init__()
@@ -865,7 +865,8 @@ class SelfTrans_signalOUT(nn.Module):
         self.ptw_in_dim = self.embedding_size
         self.cls_in_dim = self.embedding_size
         self.add_positional_encoding = add_positional_encoding
-
+        self.recycle_count = recycle_count
+        self.recycle_norm = nn.LayerNorm(embed_size)
         # Conv
         self.conv = ConvBlock(
                  seq_len,
@@ -888,7 +889,7 @@ class SelfTrans_signalOUT(nn.Module):
                  batch_first,
                  num_encoder_layers
         )
-        
+
         # Pointwise
         self.ptw = PointwiseSignalBlock(
                  #max_len,
@@ -903,21 +904,28 @@ class SelfTrans_signalOUT(nn.Module):
         #print("conv_out", conv_out.shape)
         conv_out = conv_out.transpose(1,2) # reshape input to: (batch, seq, feature)
         #print("conv_out_transpose", conv_out.shape)
-        
+
         # potional encoding
         if self.add_positional_encoding:
             conv_out = self.positional_encoding(conv_out)
             #print("positional", conv_out.shape)
-            
-        # transformer
-        trans_out = self.trans(conv_out)
-        #print("trans", trans_out.shape)
-        trans_out = trans_out.transpose(1,2) # reshape input to: (batch, channel, seq)
-        #print("trans_transpose", trans_out.shape)
 
+        recycle = None
+        for _ in range(self.recycle_count):
+            # transformer
+            if recycle is not None:
+                assert conv_out.size() == recycle.size(), f"{conv_out.size()}, {recycle.size()}"
+                conv_out = conv_out + self.recycle_norm(recycle)
+            trans_out = self.trans(conv_out)
+            recycle = trans_out
+
+        # print("trans", trans_out.shape)
+        trans_out = trans_out.transpose(1, 2)  # reshape input to: (batch, channel, seq)
+        # print("trans_transpose", trans_out.shape)
         # pred signal & class
         out = self.ptw(trans_out)
         #print("out", out.shape)
 
         return out
+
 

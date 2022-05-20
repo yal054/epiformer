@@ -4,6 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='selftrans training')
 parser.add_argument('-i', '--indir', type=str, dest="indir", help='path to dataset')
+parser.add_argument('--index', type=int, default=12, dest="index", help='celltype index')
 parser.add_argument('-o', '--outprfx', type=str, dest="outprfx", help='output prefix')
 
 args = parser.parse_args()
@@ -46,7 +47,8 @@ if_cons = True
 penalty = 0
 
 celltype_list = ["ASC", "Endo", "L2_3_IT", "L4_5_IT", "L5_6_NP", "L5_ET", "L5_IT", "L6b", "L6_CT", "L6_IT_CAR3", "L6_IT", "LAMP5", "MGC", "OGC", "OPC", "PVALB", "SNCG", "SST", "VIP", "VLMC"]
-celltype_index = 12
+#celltype_index = 12
+celltype_index = args.index
 
 #device_ids = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 device_ids = [0, 1, 2, 3]

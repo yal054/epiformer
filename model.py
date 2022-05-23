@@ -893,7 +893,7 @@ class SelfTrans_signalOUT(nn.Module):
         )
         
         # Pointwise
-        self.ptw = PointwiseBlock(
+        self.ptw = PointwiseSignalBlock(
                  #max_len,
                  crop_size,
                  self.ptw_in_dim,

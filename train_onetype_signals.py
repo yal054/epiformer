@@ -40,7 +40,7 @@ num_encoder_layers = 8
 crop_size = 32
 ptw_dropout = 0.1
 multiout_dim = 1 # 20
-recycle_count = 1
+#recycle_count = 1
 
 if_augment = True
 if_cons = True
@@ -314,8 +314,7 @@ for epoch in range(num_epoches):
                                  'dim_feedforward' : dim_feedforward, 'enc_dropout' : enc_dropout, 
                                  'batch_first' : batch_first, 'num_encoder_layers' : num_encoder_layers, 
                                  'crop_size': crop_size, 'ptw_dropout' : ptw_dropout, 'multiout_dim': multiout_dim,
-                                 'if_augment' : if_augment, 'if_cons' : if_cons, 'penalty' : penalty,
-                                 'recycle_count' : recycle_count
+                                 'if_augment' : if_augment, 'if_cons' : if_cons, 'penalty' : penalty #  'recycle_count' : recycle_count
                                 }
                      }
         save_checkpoint(checkpoint, path2outprfx + '.' + MODEL_NAME + '.pth.tar')

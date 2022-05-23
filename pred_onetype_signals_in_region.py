@@ -83,7 +83,7 @@ def run():
     if_cons = checkpoint['param']['if_cons']
     if_augment = checkpoint['param']['if_augment']
     penalty = checkpoint['param']['penalty']
-    recycle_count = checkpoint['param']['recycle_count']
+#    recycle_count = checkpoint['param']['recycle_count']
 
     """ build model """
     model = SelfTrans_signalOUT(
@@ -101,8 +101,7 @@ def run():
                   num_encoder_layers,
                   crop_size,
                   ptw_dropout,
-                  multiout_dim,
-                  recycle_count
+                  multiout_dim # recycle_count
                  ) 
     load_checkpoint(checkpoint, model) # load state_dict to model
     model = model.cpu()    

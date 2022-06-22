@@ -344,7 +344,7 @@ for epoch in range(num_epoches):
                                  'if_augment' : if_augment, 'if_cons' : if_cons, 'penalty' : penalty, 'accum_iter' : accum_iter
                                 }
                      }
-        save_checkpoint(checkpoint, MODEL_NAME + '.pth.tar')
+        save_checkpoint(checkpoint, path2outprfx + '.' + MODEL_NAME + '.pth.tar')
     print('Model_Loss: {:.4f} Valid_Loss: {:.4f} Model_Corr: {:.4f} Valid_Corr: {:.4f}'.format(
             epoch_loss, test_loss, epoch_corr, test_corr))
 

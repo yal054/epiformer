@@ -101,7 +101,7 @@ def run():
                   num_encoder_layers,
                   crop_size,
                   ptw_dropout,
-                  multiout_dim # recycle_count
+                  multiout_dim #recycle_count
                  ) 
     load_checkpoint(checkpoint, model) # load state_dict to model
     model = model.cpu()    

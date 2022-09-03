@@ -151,9 +151,9 @@ criterion = nn.PoissonNLLLoss(log_input=False)
 metric = PearsonR(reduction='mean', batch_first=True)
 #metric = nn.CosineSimilarity(dim=1, eps=1e-6) # Cosine Similarity
 
-#scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=warmup_epoches, max_iters=max_iter_epoches)
+scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=warmup_epoches, max_iters=max_iter_epoches)
 #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=5, min_lr=1e-5, verbose=True) # for corr
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3, min_lr=min_lr, verbose=True) # for loss
+#scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3, min_lr=min_lr, verbose=True) # for loss
 
 def cal_roc(test_y, predict_y, pos_label=1):
     fpr, tpr, thresholds = metrics.roc_curve(test_y, predict_y, pos_label=pos_label)

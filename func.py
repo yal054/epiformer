@@ -235,6 +235,50 @@ class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
             lr_factor *= epoch * 1.0 / self.warmup
         return lr_factor
 
+class LinearWarmupScheduler(optim.lr_scheduler._LRScheduler):
+    
+    """ Linear warmup and then linear decay.
+        Linearly increases learning rate from 0 to 1. over `warmup_steps` training steps.
+        Linearly decreases learning rate from 1. to 0. over remaining `t_total - warmup_steps` steps.
+    """
+    
+    def __init__(self, optimizer, warmup, max_iters):
+        self.warmup = warmup
+        self.max_iters = max_iters
+        super().__init__(optimizer)
+
+    def get_lr(self):
+        lr_factor = self.get_lr_factor(epoch=self.last_epoch)
+        return [base_lr * lr_factor for base_lr in self.base_lrs]
+
+    def get_lr_factor(self, epoch):
+        lr_factor = max(0.0, float(self.max_iters - epoch) / float(max(1, self.max_iters - self.warmup)))
+        if epoch <= self.warmup:
+            lr_factor *= epoch * 1.0 / self.warmup
+        return lr_factor
+
+class ConstantWarmupScheduler(optim.lr_scheduler._LRScheduler):
+    """ Linear warmup and then constant.
+        Linearly increases learning rate schedule from 0 to target lr over `warmup_steps` training steps.
+        Keeps learning rate schedule equal to target lr after warmup_steps.
+    """
+
+    def __init__(self, optimizer, warmup, max_iters):
+        self.warmup = warmup
+        self.max_num_iters = max_iters
+        super().__init__(optimizer)
+
+    def get_lr(self):
+        lr_factor = self.get_lr_factor(epoch=self.last_epoch)
+        return [base_lr * lr_factor for base_lr in self.base_lrs]
+
+    def get_lr_factor(self, epoch):
+        lr_factor = 1.
+        if epoch <= self.warmup:
+            lr_factor *= epoch * 1.0 / self.warmup
+        return lr_factor
+    
+    
 def cal_roc(test_y, predict_y, pos_label=1):
     fpr, tpr, thresholds = metrics.roc_curve(test_y, predict_y, pos_label=pos_label)
     roc_auc = auc(fpr, tpr)

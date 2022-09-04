@@ -217,7 +217,31 @@ def augment_stochastic(data_obj, augment_rc=False, shift_size=[]):
 
 ####################
 #### training
+class CosineRestartsWarmupScheduler(optim.lr_scheduler._LRScheduler):
+    """ Linear warmup and then cosine cycles with hard restarts.
+        Linearly increases learning rate from 0 to 1 over `warmup_steps` training steps.
+        If `cycles` (default=1.) is different from default, learning rate follows `cycles` times a cosine decaying
+        learning rate (with hard restarts).
+    """
+    def __init__(self, optimizer, warmup, max_iters, cycles=1.):
+        self.warmup = warmup
+        self.max_num_iters = max_iters
+        self.cycles = cycles
+        super().__init__(optimizer)
 
+    def get_lr(self):
+        lr_factor = self.get_lr_factor(epoch=self.last_epoch)
+        return [base_lr * lr_factor for base_lr in self.base_lrs]
+
+    def get_lr_factor(self, epoch):
+        if epoch < self.warmup:
+            return float(epoch) / float(max(1, self.warmup))
+        # progress after warmup
+        progress = float(epoch - self.warmup) / float(max(1, self.max_num_iters - self.warmup))
+        if progress >= 1.0:
+            return 0.0
+        return max(0.0, 0.5 * (1. + math.cos(math.pi * ((float(self.cycles) * progress) % 1.0))))
+    
 class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
 
     def __init__(self, optimizer, warmup, max_iters):

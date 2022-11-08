@@ -11,5 +11,5 @@ This package will be actively updated
 ### Usage
 
 
-### Downlaod link to models
+### Download link to pre-trained models
 

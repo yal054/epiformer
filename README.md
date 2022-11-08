@@ -1,5 +1,7 @@
 # epiformer
 
+This package will be actively updated
+
 ### Introduction
 
 

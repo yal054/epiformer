@@ -33,9 +33,8 @@ torch.backends.cudnn.benchmark = False
 
 
 # universal para
-celltype_list = ["ASC", "Endo", "L2_3_IT", "L4_5_IT", "L5_6_NP", "L5_ET", "L5_IT", "L6b", "L6_CT", "L6_IT_CAR3", "L6_IT", "LAMP5", "MGC", "OGC", "OPC", "PVALB", "SNCG", "SST", "VIP", "VLMC"]
-#celltype_labels = "OPC"
-#index = 14
+celltype_list = ["HIP", "ASCT", "OPC", "OGC", "MGC", "VIP", "LAMP5", "PVALB", "SST", "MSN", "FOXP2", "ITL23", "ITL4", "ITL5", "ITL6", "ITL6_2", "CT", "L6B", "NP", "PIR", "ET"]
+#index = 4
 
 def run():
     start_time = pc()
@@ -83,7 +82,7 @@ def run():
     if_cons = checkpoint['param']['if_cons']
     if_augment = checkpoint['param']['if_augment']
     penalty = checkpoint['param']['penalty']
-#    recycle_count = checkpoint['param']['recycle_count']
+    #recycle_count = checkpoint['param']['recycle_count']
 
     """ build model """
     model = SelfTrans_signalOUT(
@@ -101,7 +100,7 @@ def run():
                   num_encoder_layers,
                   crop_size,
                   ptw_dropout,
-                  multiout_dim #recycle_count
+                  multiout_dim #                  recycle_count
                  ) 
     load_checkpoint(checkpoint, model) # load state_dict to model
     model = model.cpu()    

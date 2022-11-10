@@ -241,7 +241,7 @@ class CosineRestartsWarmupScheduler(optim.lr_scheduler._LRScheduler):
         if progress >= 1.0:
             return 0.0
         return max(0.0, 0.5 * (1. + math.cos(math.pi * ((float(self.cycles) * progress) % 1.0))))
-    
+
 class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
 
     def __init__(self, optimizer, warmup, max_iters):
@@ -258,6 +258,7 @@ class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
         if epoch <= self.warmup:
             lr_factor *= epoch * 1.0 / self.warmup
         return lr_factor
+
 
 class LinearWarmupScheduler(optim.lr_scheduler._LRScheduler):
     
@@ -281,9 +282,10 @@ class LinearWarmupScheduler(optim.lr_scheduler._LRScheduler):
             lr_factor *= epoch * 1.0 / self.warmup
         return lr_factor
 
+
 class ConstantWarmupScheduler(optim.lr_scheduler._LRScheduler):
     """ Linear warmup and then constant.
-        Linearly increases learning rate schedule from 0 to target lr over `warmup_steps` training steps.
+        Linearly increases learning rate schedule from 0 to 1. over `warmup_steps` training steps.
         Keeps learning rate schedule equal to target lr after warmup_steps.
     """
 
@@ -301,8 +303,8 @@ class ConstantWarmupScheduler(optim.lr_scheduler._LRScheduler):
         if epoch <= self.warmup:
             lr_factor *= epoch * 1.0 / self.warmup
         return lr_factor
-    
-    
+
+
 def cal_roc(test_y, predict_y, pos_label=1):
     fpr, tpr, thresholds = metrics.roc_curve(test_y, predict_y, pos_label=pos_label)
     roc_auc = auc(fpr, tpr)

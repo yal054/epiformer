@@ -1,1 +1,1 @@
-#### Download genome data from GENCODE, ENCODE, and UCSC genome browser, or data used in this study from this link: [http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/](http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/)
+#### Download models trained in this study from this link: [http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/](http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/)

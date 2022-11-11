@@ -1,6 +1,7 @@
 # Epiformer
 
 This package is under actively updating
+For more details, please check out our recent preprint ***A comparative atlas of single-cell chromatin accessibility in the human brain*** on [bioRxiv](https://www.biorxiv.org/content/10.1101/2022.11.09.515833v1).
 
 ### Introduction
 

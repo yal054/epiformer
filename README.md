@@ -1,6 +1,6 @@
 # Epiformer
 
-This package will be actively updated
+This package is under actively updating
 
 ### Introduction
 

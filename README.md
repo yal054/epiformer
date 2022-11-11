@@ -19,14 +19,14 @@ The deep learning model, called ***Epiformer***, takes both one-hot-encoded DNA 
 
 ### Usage
 
-##### Step 0: Prepare inputs and download
+#### Step 0: Prepare inputs and download
 - We create few directories to keep various datasets, models, and predictions.
 - Download human genome (hg38) in fasta format, chromosome size, ENCODE blacklist regions, conservation score tracks from multiple species alignment (e.g. phastCons). These files are kept under directory `./genome`.
 - Generate ATAC-seq signal tracks using softwares like [deepTools](https://deeptools.readthedocs.io/en/develop/), put files under directory `./inputs`
 - Provide peak calls (optional) under directory `./inputs`. 
 - Generate one \*.txt listing the path to inputs.
 
-##### Step 1: Generate datasets
+#### Step 1: Generate datasets
 
 ```
 j=mean
@@ -51,7 +51,7 @@ python bin/selftrans.generate_multi_input.py \
 done;
 ```
 
-##### Step 2: Train model
+#### Step 2: Train model
 
 Before training, please modify the hyperparameters in script ***train_signals.py***. The current models were trained on 4 NVIDIA GeForce RTX 3090 (24GB) GPUs.
 
@@ -61,7 +61,7 @@ celltype_list=("HIP" "ASCT" "OPC" "OGC" "MGC" "VIP" "LAMP5" "PVALB" "SST" "MSN" 
 i=4
 typename=${celltype_list[${i}]}
 
-# human overall corr
+human overall corr
 
 for i in `seq 1 19`;
 do echo $i;
@@ -80,7 +80,7 @@ done
 ```
 
 
-##### Step 3: Make predictions
+#### Step 3: Make predictions
 
 
 

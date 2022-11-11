@@ -41,26 +41,16 @@ index   identifier      file    clip    sum_stat        description     peak
 #### Step 1: Generate datasets
 
 ```
-j=mean
-k=phastCons
-l=100kSeg
-seqlen=98304 # 49152 # 196608
-b=128 # 64 # 256
-
-for i in human mouse; # filter blacklist
-do echo $i;
-mkdir datasets/${i}.${j}${l}${b}.multitype.${k}
-python bin/selftrans.generate_multi_input.py \
-                                     --target datasets/${i}.targets.txt \
-                                     --seqcons genome/${i}.${k}.bw \
-                                     --fa genome/${i}.fa \
-                                     --gsize genome/${i}.chrom.sizes.lite \
-                                     --blacklist genome/${i}.blacklist.bed.gz \
-                                     --seqlen ${seqlen} \
-                                     --nchunk 5000 \
-                                     --binsize ${b} \
-                                     -o datasets/${i}.${j}${l}${b}.multitype.${k}/${i}.${j}${l}${b}.multitype.${k}
-done;
+python bin/generate_datasets.py \
+       --target targets/human.targets.txt \
+       --seqcons genome/human.phastCons.bw \
+       --fa genome/human.fa \
+       --gsize genome/human.chrom.sizes.lite \
+       --blacklist genome/human.blacklist.bed.gz \
+       --seqlen 98304 \
+       --nchunk 5000 \
+       --binsize 128 \
+       -o datasets/human.mean100kSeg128.multitype.phastCons
 ```
 
 #### Step 2: Train model
@@ -68,35 +58,89 @@ done;
 Before training, please modify the hyperparameters in script ***train_signals.py***. The current models were trained on 4 NVIDIA GeForce RTX 3090 (24GB) GPUs.
 
 ```
-celltype_list=("HIP" "ASCT" "OPC" "OGC" "MGC" "VIP" "LAMP5" "PVALB" "SST" "MSN" "FOXP2" "ITL23" "ITL4" "ITL5" "ITL6" "ITL6_2" "CT" "L6B" "NP" "PIR" "ET")
+#--------------------------#
+# Training hyperparameters #
 
+num_epoches = 100
+learning_rate = 1e-4
+min_lr = 1e-6
+
+batch_size = 8 # using 4 NVIDIA GeForce RTX 3090 GPUs
+warmup_epoches = 10
+max_iter_epoches = 100
+
+accum_iter = 8 # gradient accumulation
+
+#-----------------------#
+# Model hyperparameters #
+seq_len = 98304
+bin_size = 128
+num_cnn_layer = 6
+max_len = 384 * 2
+add_positional_encoding = True
+embed_size = 384 * 2
+num_heads = 4
+att_dropout = 0.4
+dim_feedforward = 2048
+enc_dropout = 0.4
+batch_first = True
+num_encoder_layers = 8
+crop_size = 64
+ptw_dropout = 0.1
+multiout_dim = 1 # 20
+#recycle_count = 3
+
+if_augment = True # data augmentation
+if_cons = True # to use conservation score or not
+penalty = 0 # give penalty to loss function or not
+```
+
+Here, we demonstrate the model training for microglia (MGC).
+
+```
+celltype_list=("HIP" "ASCT" "OPC" "OGC" "MGC" "VIP" "ITL23" "ET")
 i=4
 typename=${celltype_list[${i}]}
 
-human overall corr
+path2dataset=datasets/
+outprfx=model/${typename}
 
-for i in `seq 1 19`;
-do echo $i;
-typename=${celltype_list[${i}]}
-echo $typename
-
-path2dataset=datasets/human.mean100kSeg128.multitype.phastCons/
-outprfx=model/human.input10k.mean100kSeg128.${typename}.4batch12accum.lr1e-4.phastCons.crop64.overallCorr.ConstantWarmup.RAdam
-
-CUDA_VISIBLE_DEVICES=0,1,2,3 python epiformer/train_signals.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3 python bin/train_signals.py \
                                     -i  $path2dataset \
                                     --index ${i} \
                                     -o $outprfx &> $outprfx.train.log
 
-done
 ```
 
+The current models were trained on 4 NVIDIA GeForce RTX 3090 (24GB) GPUs. Three model will be saved from checkpoints with best correlation, best loss and from the last epoch.
 
 #### Step 3: Make predictions
 
+Here, we demonstrate the prediction centered at TSS of gene ***BIN1*** in microglia (MGC).
 
+```
+celltype_list=("HIP" "ASCT" "OPC" "OGC" "MGC" "VIP" "ITL23" "ET")
+i=4
+typename=${celltype_list[${i}]}
+
+seq_len=98304 
+bin_size=128
+cell_index=${i} # MGC
+species="human"
+region="chr2:127068747-127150006" # centered at TSS of gene ***BIN1***
+
+path2model=model/MGC.model-1663637197.best_loss.pth.tar
+path2pred=pred/MGC
+
+python epiformer/pred_signals.py -m $path2model \
+                                 -s $species -r $region \
+                                 -d ./ --index $cell_index --seqlen $seq_len --binsize ${bin_size} \
+                                 -o $path2pred.${species} &> $path2pred.${species}.pred_signals.log
+```
 
 ### Download link to pre-trained models
 
+The models pre-trained in this study: [http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/](http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/)
+We will keep updating these cell-type specific models.
 
 

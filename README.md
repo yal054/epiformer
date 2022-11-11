@@ -19,12 +19,23 @@ The deep learning model, called ***Epiformer***, takes both one-hot-encoded DNA 
 
 ### Usage
 
-#### Step 0: Prepare inputs and download
+#### Step 0: Prepare targets and download
 - We create few directories to keep various datasets, models, and predictions.
 - Download human genome (hg38) in fasta format, chromosome size, ENCODE blacklist regions, conservation score tracks from multiple species alignment (e.g. phastCons). These files are kept under directory `./genome`.
-- Generate ATAC-seq signal tracks using softwares like [deepTools](https://deeptools.readthedocs.io/en/develop/), put files under directory `./inputs`
-- Provide peak calls (optional) under directory `./inputs`. 
-- Generate one \*.txt listing the path to inputs.
+- Generate ATAC-seq signal tracks using softwares like [deepTools](https://deeptools.readthedocs.io/en/develop/), put files under directory `./targets`
+- Provide peak calls (optional) under directory `./targets`. 
+- Generate one tab delimited text file ***targets.txt*** listing the path to every target file, such as:
+```
+index   identifier      file    clip    sum_stat        description     peak
+0       HIP     path2targets/human.HIP.norm_cov.bw      128     mean    HIP     path2targets/human.HIP.bed
+1       ASCT    path2targets/human.ASCT.norm_cov.bw     128     mean    ASCT    path2targets/human.ASCT.bed
+2       OPC     path2targets/human.OPC.norm_cov.bw      128     mean    OPC     path2targets/human.OPC.bed
+3       OGC     path2targets/human.OGC.norm_cov.bw      128     mean    OGC     path2targets/human.OGC.bed
+4       MGC     path2targets/human.MGC.norm_cov.bw      128     mean    MGC     path2targets/human.MGC.bed
+5       VIP     path2targets/human.VIP.norm_cov.bw      128     mean    VIP     path2targets/human.VIP.bed
+6       ITL23   path2targets/human.ITL23.norm_cov.bw    128     mean    ITL23   path2targets/human.ITL23.bed
+7       ET      path2targets/human.ET.norm_cov.bw       128     mean    ET      path2targets/human.ET.bed
+```
 
 #### Step 1: Generate datasets
 

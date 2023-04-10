@@ -140,7 +140,7 @@ python epiformer/pred_signals.py -m $path2model \
 
 ### Download link to pre-trained models
 
-The models pre-trained in this study: [http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/](http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/).
+The models pre-trained in this study: [http://catlas.org/catlas_downloads/humanbrain/epiformer_data/](http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/).
 
 We will keep updating these cell-type specific models.
 

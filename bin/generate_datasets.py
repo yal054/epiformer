@@ -61,7 +61,8 @@ def run():
     bin_size = args.binsize
     #method = args.method
     outprfx = args.outprfx
-    
+    peak_list = None
+
     #pattern_string = '|'.join(['N', 'n'])
     #pattern = re.compile(pattern_string)
 
@@ -76,12 +77,14 @@ def run():
     bw_list = [pyBigWig.open(path2bw) for path2bw in trgfiles['file']]
     clip_list = trgfiles['clip']
     stat_list = trgfiles['sum_stat']
-    peak_list = [BedTool(path2peak) for path2peak in trgfiles['peak']]
-    
-#    if path2blacklist is not None:
-#        print('read genome blacklist...')
-#        black_list = BedTool(path2blacklist)
-    
+    if 'scale' in trgfiles.columns:
+        scale_list = trgfiles['scale']
+    else:
+        scale_list = [1] * trg_num
+    peak_list = None
+    if 'peak' in trgfiles.columns:
+        peak_list = [BedTool(path2peak) for path2peak in trgfiles['peak']]
+
     if path2seqcons is not None:
         print('read seqcons file...')
         consbw = pyBigWig.open(path2seqcons) 
@@ -125,13 +128,14 @@ def run():
     print("extract sequence...")
     seqs = bed.sequence(fi=fasta, tab=True, name=True)
 
-    print("intersect with peaks...")
     path2itsc = outprfx + ".itsc.bed"
-#    if path2bed is not None:
-#        cmd = "intersectBed -loj -a "+ path2bed + " -b " + ' '.join(trgfiles['peak']) + " -nonamecheck " + " > " + path2itsc # with index in column 4
-#    else:
-    cmd = "intersectBed -loj -a "+ bed.fn + " -b " + ' '.join(trgfiles['peak']) + " -nonamecheck " + " > " + path2itsc # with index in column 4
-    subprocess.call(cmd, shell=True)
+    if peak_list is not None: 
+        print("intersect with peaks...")
+        cmd = "intersectBed -loj -a "+ bed.fn + " -b " + ' '.join(trgfiles['peak']) + " -nonamecheck " + " > " + path2itsc # with index in column 4
+        subprocess.call(cmd, shell=True)
+    else:
+        cmd = "awk 'BEGIN{FS=OFS=\"\t\"}{print $0, \".\"}' "+ bed.fn + " > " + path2itsc # with index in column 4
+        subprocess.call(cmd, shell=True)
     
     print("generate peak dict for indexing...")
     get_interval_chrom = attrgetter("chrom")
@@ -185,7 +189,7 @@ def run():
             end = int(line[2])
             name = line[0]+":"+line[1]+"-"+line[2]
             count += 1
-            
+
             if name != saved_name:
                 
                 if lmx is not None:
@@ -195,7 +199,10 @@ def run():
                 if totcount>0 and totcount % chunk_size == 0:
                     print("generating dataset...")
                     print("total number of data: ", str(totcount))
-                    save2h5(inputs=inputs, seqcons=seqcons, targets=targets, names=names, labels=labels, index=str(nth), outprfx=outprfx)
+                    if np.sum(labels) > 0:
+                        save2h5(inputs=inputs, seqcons=seqcons, targets=targets, names=names, index=str(nth), outprfx=outprfx, labels=labels)
+                    else:
+                        save2h5(inputs=inputs, seqcons=seqcons, targets=targets, names=names, index=str(nth), outprfx=outprfx)
                     print("save output of chunk " + str(nth) + " to HDF5 ...")
                     ''' init '''
                     inputs = []
@@ -240,7 +247,7 @@ def run():
                     incons = np.zeros(len(seq))
                 
                 '''sum and clip signals'''
-                outs_list = [ sig2sum(vals_list[i], bin_size = bin_size, sum_method = stat_list[i]) for i in range(trg_num) ]
+                outs_list = [ sig2sum(vals_list[i], bin_size = bin_size, sum_method = stat_list[i], scale = scale_list[i]) for i in range(trg_num) ]
                 clip_outs_list = [ np.clip(outs_list[i], 0, clip_list[i]) for i in range(trg_num) ]
     
                 '''concat to signal matrix'''
@@ -263,7 +270,10 @@ def run():
                     labels.append(lmx)
                     print("generating dataset...")
                     print("total number of data: ", str(totcount))
-                    save2h5(inputs=inputs, seqcons=seqcons, targets=targets, names=names, labels=labels, index=str(nth), outprfx=outprfx)
+                    if np.sum(labels) > 0:
+                        save2h5(inputs=inputs, seqcons=seqcons, targets=targets, names=names, index=str(nth), outprfx=outprfx, labels=labels)
+                    else:
+                        save2h5(inputs=inputs, seqcons=seqcons, targets=targets, names=names, index=str(nth), outprfx=outprfx)
                     print("save output of chunk " + str(nth) + " to HDF5 ...")
                     print("end")
                 else:
@@ -283,7 +293,10 @@ def run():
                     labels.append(lmx)
                     print("generating dataset...")
                     print("total number of data: ", str(totcount))
-                    save2h5(inputs=inputs, seqcons=seqcons, targets=targets, names=names, labels=labels, index=str(nth), outprfx=outprfx)
+                    if np.sum(labels) > 0:
+                        save2h5(inputs=inputs, seqcons=seqcons, targets=targets, names=names, index=str(nth), outprfx=outprfx, labels=labels)
+                    else:
+                        save2h5(inputs=inputs, seqcons=seqcons, targets=targets, names=names, index=str(nth), outprfx=outprfx)
                     print("save output of chunk " + str(nth) + " to HDF5 ...")
                     print("end") 
 
@@ -322,7 +335,7 @@ def seq2onehot(seq):
     return mat
 
 
-def sig2sum(sig, bin_size = 128, sum_method = 'sum', norm = False, logtrans = False):
+def sig2sum(sig, bin_size = 128, sum_method = 'sum', scale = 1, norm = False, logtrans = False):
     """normalize signals"""
     if norm:
         sig = sig/np.sum(sig)*1000
@@ -336,7 +349,7 @@ def sig2sum(sig, bin_size = 128, sum_method = 'sum', norm = False, logtrans = Fa
     chunk_begin, chunk_end = 0, bin_size
     splitted_vals = []
     for _ in range(bin_num):
-        b = sig[chunk_begin:chunk_end]
+        b = sig[chunk_begin:chunk_end] * scale
         if sum_method == 'mean':
             val = np.mean(b)
         elif sum_method == 'median':
@@ -348,7 +361,7 @@ def sig2sum(sig, bin_size = 128, sum_method = 'sum', norm = False, logtrans = Fa
         splitted_vals.append(val)
         chunk_begin, chunk_end = chunk_begin + bin_size, chunk_end + bin_size
     if chunk_begin < sig_length:
-        b = sig[chunk_begin:sig_length]
+        b = sig[chunk_begin:sig_length] * scale
         if sum_method == 'mean':
             val = np.mean(b)
         elif sum_method == 'median':
@@ -362,15 +375,16 @@ def sig2sum(sig, bin_size = 128, sum_method = 'sum', norm = False, logtrans = Fa
     #splitted_vals = torch.FloatTensor(splitted_vals)
     return splitted_vals
 
-def save2h5(inputs, seqcons, targets, names, labels, index, outprfx):
+def save2h5(inputs, seqcons, targets, names, index, outprfx, labels=None):
     hf = h5py.File(outprfx + '.' + index + '.h5', 'w')
     '''save to h5 format'''
-    hf.create_dataset('inputs/seq', data=inputs, **hdf5plugin.Blosc(cname='blosclz', clevel=9))
+    hf.create_dataset('inputs/seq', data=inputs, **hdf5plugin.LZ4(nbytes=0)) #**hdf5plugin.Blosc(cname='blosclz', clevel=9))
     #if seqcons is not None:
-    hf.create_dataset('inputs/seqcons', data=seqcons, **hdf5plugin.Blosc(cname='blosclz', clevel=9))
-    hf.create_dataset('targets/value', data=targets, **hdf5plugin.Blosc(cname='blosclz', clevel=9))
-    hf.create_dataset('targets/label', data=labels, **hdf5plugin.Blosc(cname='blosclz', clevel=9))
-    hf.create_dataset('segments/name', data=names, **hdf5plugin.Blosc(cname='blosclz', clevel=9))
+    hf.create_dataset('inputs/seqcons', data=seqcons, **hdf5plugin.LZ4(nbytes=0)) #, **hdf5plugin.Blosc(cname='blosclz', clevel=9))
+    hf.create_dataset('targets/value', data=targets, **hdf5plugin.LZ4(nbytes=0)) # , **hdf5plugin.Blosc(cname='blosclz', clevel=9))
+    if labels is not None:
+        hf.create_dataset('targets/label', data=labels, **hdf5plugin.LZ4(nbytes=0)) #, **hdf5plugin.Blosc(cname='blosclz', clevel=9))
+    hf.create_dataset('segments/name', data=names, **hdf5plugin.LZ4(nbytes=0)) #, **hdf5plugin.Blosc(cname='blosclz', clevel=9))
     hf.close()
 
 def get_bin_index(start, bin_size, peak_start, peak_end):

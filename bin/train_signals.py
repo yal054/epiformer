@@ -4,7 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='selftrans training')
 parser.add_argument('-i', '--indir', type=str, dest="indir", help='path to dataset')
-parser.add_argument('--index', type=int, default=4, dest="index", help='celltype index')
+parser.add_argument('--index', type=int, default=None, dest="index", help='celltype index')
 parser.add_argument('-o', '--outprfx', type=str, dest="outprfx", help='output prefix')
 
 args = parser.parse_args()

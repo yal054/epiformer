@@ -242,7 +242,7 @@ for epoch in range(num_epoches):
                 weights = 1 + idxy * (penalty - 1)
                 loss = loss * weights
             
-            loss = loss.mean()
+            loss = loss.nanmean()
             running_loss += loss.item()
                         
             # normalize loss to account for batch accumulation
@@ -268,7 +268,7 @@ for epoch in range(num_epoches):
     epoch_pred_list = torch.cat(epoch_pred_list, dim=1) 
     
     corr = metric(epoch_target_list, epoch_pred_list) # log2 pcc flatten
-    corr = float(np.mean(corr.cpu().detach().numpy()))        
+    corr = float(np.nanmean(corr.cpu().detach().numpy()))        
         
     epoch_corr = corr
     epoch_loss = running_loss / len(train_loader)
@@ -303,7 +303,7 @@ for epoch in range(num_epoches):
             test_weights = 1 + test_idxy * (penalty - 1)
             test_loss = test_loss * test_weights
             
-        test_loss = test_loss.mean()
+        test_loss = test_loss.nanmean()
         test_running_loss += test_loss.item()
         
         # append target and output
@@ -317,7 +317,7 @@ for epoch in range(num_epoches):
     test_pred_list = torch.cat(test_pred_list, dim=1) 
     
     test_corr = metric(test_target_list, test_pred_list) # log2 pcc flatten
-    test_corr = float(np.mean(test_corr.cpu().detach().numpy()))
+    test_corr = float(np.nanmean(test_corr.cpu().detach().numpy()))
     
     test_corr = test_corr
     test_loss = test_running_loss / len(val_loader)

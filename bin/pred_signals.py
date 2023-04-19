@@ -7,10 +7,10 @@ parser.add_argument('-m', '--model', type=str, dest="model", help='path to model
 parser.add_argument('-s', '--species', type=str, dest="species", help='species: human, macaque, marmoset, mouse')
 parser.add_argument('-r', '--region', type=str, dest="region", help='genomic region: chr:xxxx-xxxx')
 parser.add_argument('-d', '--path2dir', type=str, dest="path2dir", help='path to working directory')
-#parser.add_argument('--target', type=str, dest="target", help='input targets: list of bigwig and peaks')
+parser.add_argument('-t', '--target', type=str, dest="target", help='input targets: list of bigwig and peaks')
 #parser.add_argument('--seqcons', type=str, dest="seqcons", default=None, help='input sequence cons: phastCons or PhyloP')
 #parser.add_argument('--fa', type=str, dest="fa", help='input genome sequence in fasta format')
-parser.add_argument('--index', type=int, default=12, dest="index", help='celltype index')
+parser.add_argument('--index', type=int, default=None, dest="index", help='celltype index')
 parser.add_argument('--seqlen', type=int, default=98304, dest="seqlen", help='sequence length')
 parser.add_argument('--binsize', type=int, default=256, dest="binsize", help='bin size')
 parser.add_argument('-o', '--outprfx', type=str, dest="outprfx", help='output prefix')
@@ -45,7 +45,10 @@ def run():
     path2dir = args.path2dir
     index = args.index
     celltype_labels = celltype_list[index]
-    path2trg = ''.join([path2dir, "/datasets/", species, ".targets.txt"])
+    #path2trg = ''.join([path2dir, "/datasets/", species, ".targets.txt"])
+    path2trg = args.target
+    trgfiles = pd.read_csv(path2trg, delimiter = "\t")
+    celltype_list = trgfiles['identifier'] 
     path2seqcons = ''.join([path2dir, "/genome/", species, ".phastCons.bw"])
     if os.path.isfile(path2seqcons) is not True:
         path2seqcons = None
@@ -133,6 +136,8 @@ def run():
         
     # testing
     outs = model.forward(inputs)
+    if index:
+        outs = outs[:, index, :].unsqueeze(1)
 
     # calculate statistics
     #corr = metric(torch.flatten(outs), start_dim=1), 

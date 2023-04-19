@@ -109,13 +109,15 @@ class HDF5Dataset(Dataset):
             data_obj["signal"] = np.expand_dims(signal[self.which, :], axis=0)
         else:
             data_obj["signal"] = signal
-            
-        label = self.hf['targets/label'][index]
         
-        if self.which:
-            data_obj["label"] = np.expand_dims(label[self.which, :], axis=0)
-        else:
-            data_obj["label"] = label
+        e = "targets/label" in self.hf
+        if e:
+            label = self.hf['targets/label'][index]
+        
+            if self.which:
+                data_obj["label"] = np.expand_dims(label[self.which, :], axis=0)
+            else:
+                data_obj["label"] = label
 
         return data_obj
 
@@ -203,7 +205,7 @@ def augment_stochastic(data_obj, augment_rc=False, shift_size=[]):
         data_obj_aug['seq'] = seq_revc(data_obj['seq'])
         data_obj_aug['seqcons'] = trg_rev(data_obj['seqcons'])
         data_obj_aug['signal'] = trg_rev(data_obj['signal'])
-        data_obj_aug['label'] = trg_rev(data_obj['label'])
+        #data_obj_aug['label'] = trg_rev(data_obj['label'])
     else:
         data_obj_aug = data_obj
     
@@ -623,7 +625,9 @@ def extract_data(region4pred,
     bw_list = [pyBigWig.open(path2bw) for path2bw in trgfiles['file']]
     clip_list = trgfiles['clip']
     stat_list = trgfiles['sum_stat']
-    peak_list = [BedTool(path2peak) for path2peak in trgfiles['peak']]
+    
+    if 'peak' in trgfiles.columns:
+        peak_list = [BedTool(path2peak) for path2peak in trgfiles['peak']]
     if path2seqcons is not None:
         consbw = pyBigWig.open(path2seqcons) 
     
@@ -642,28 +646,29 @@ def extract_data(region4pred,
         incons = np.zeros(len(seq))
     incons = np.expand_dims(incons, axis=0)
     
-    '''intersect with peaks'''
-    path2itsc = "tmp.itsc.bed"
-    cmd = "intersectBed -loj -a "+ bed.fn + " -b " + ' '.join(trgfiles['peak']) + " -nonamecheck " + " > " + path2itsc # with index in column 4
-    subprocess.call(cmd, shell=True)
-    
-    '''extract peak overlapped with bins'''
-    nbin = seq_len // bin_size
-    nrow = len(identifier_list)
-    ncol = nbin
-    lmx = csr_matrix((nrow, ncol), dtype = np.float32).toarray()
-    with open(path2itsc, "r") as infile:
-        for line in infile:
-            line = line.rstrip().split()
-            sig_index = line[3]
-            if sig_index != '.':
-                sig_index = int(sig_index) - 1 
-                peak_start = int(line[5])
-                peak_end = int(line[6])
-                start_bin, end_bin = get_bin_index(start, bin_size, peak_start, peak_end)
-                lmx[sig_index, start_bin:end_bin] = 1
-            else:
-                pass
+    if 'peak' in trgfiles.columns:
+        '''intersect with peaks'''
+        path2itsc = "tmp.itsc.bed"
+        cmd = "intersectBed -loj -a "+ bed.fn + " -b " + ' '.join(trgfiles['peak']) + " -nonamecheck " + " > " + path2itsc # with index in column 4
+        subprocess.call(cmd, shell=True)
+        
+        '''extract peak overlapped with bins'''
+        nbin = seq_len // bin_size
+        nrow = len(identifier_list)
+        ncol = nbin
+        lmx = csr_matrix((nrow, ncol), dtype = np.float32).toarray()
+        with open(path2itsc, "r") as infile:
+            for line in infile:
+                line = line.rstrip().split()
+                sig_index = line[3]
+                if sig_index != '.':
+                    sig_index = int(sig_index) - 1 
+                    peak_start = int(line[5])
+                    peak_end = int(line[6])
+                    start_bin, end_bin = get_bin_index(start, bin_size, peak_start, peak_end)
+                    lmx[sig_index, start_bin:end_bin] = 1
+                else:
+                    pass
     
     '''extract values from each bw file'''
     vals_list = [ bw_list[i].values(chrom, start, end) for i in range(trg_num) ]
@@ -676,7 +681,8 @@ def extract_data(region4pred,
     data_obj["seq"] = inputs
     data_obj["seqcons"] = incons
     data_obj["signal"] = out_mx
-    data_obj["label"] = lmx
+    if 'peak' in trgfiles.columns:
+        data_obj["label"] = lmx
     
     return data_obj
 

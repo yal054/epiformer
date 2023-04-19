@@ -33,7 +33,7 @@ torch.backends.cudnn.benchmark = False
 
 
 # universal para
-celltype_list = ["HIP", "ASCT", "OPC", "OGC", "MGC", "VIP", "LAMP5", "PVALB", "SST", "MSN", "FOXP2", "ITL23", "ITL4", "ITL5", "ITL6", "ITL6_2", "CT", "L6B", "NP", "PIR", "ET"]
+#celltype_list = ["HIP", "ASCT", "OPC", "OGC", "MGC", "VIP", "LAMP5", "PVALB", "SST", "MSN", "FOXP2", "ITL23", "ITL4", "ITL5", "ITL6", "ITL6_2", "CT", "L6B", "NP", "PIR", "ET"]
 #index = 4
 
 def run():
@@ -44,11 +44,11 @@ def run():
     species = args.species
     path2dir = args.path2dir
     index = args.index
-    celltype_labels = celltype_list[index]
     #path2trg = ''.join([path2dir, "/datasets/", species, ".targets.txt"])
     path2trg = args.target
     trgfiles = pd.read_csv(path2trg, delimiter = "\t")
     celltype_list = trgfiles['identifier'] 
+    celltype_labels = celltype_list[index]
     path2seqcons = ''.join([path2dir, "/genome/", species, ".phastCons.bw"])
     if os.path.isfile(path2seqcons) is not True:
         path2seqcons = None

@@ -234,7 +234,7 @@ def run():
                 
                 '''get sequence'''
                 index = peak_dict[ ':'.join([line[0],line[1],line[2]]) ]
-                seq = seqfile[index].rstrip().split(None, 1)[1]
+                seq = seqfile[index].rstrip().split(None, 1)[0]
             
                 '''extract values from each bw file'''
                 vals_list = [ bw_list[i].values(chrom, start, end) for i in range(trg_num) ]

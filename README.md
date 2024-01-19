@@ -1,7 +1,7 @@
 # Epiformer
 
 11/11/2022 - This package is still actively updating!
-For more details, please check out our recent paper ***A comparative atlas of single-cell chromatin accessibility in the human brain*** (2023) [Science] (https://www.science.org/doi/full/10.1126/science.adf7044) 13;382(6667):eadf7044
+For more details, please check out our recent paper ***A comparative atlas of single-cell chromatin accessibility in the human brain*** (2023) [***Science***](https://www.science.org/doi/full/10.1126/science.adf7044) 13;382(6667):eadf7044
 
 ### Introduction
 

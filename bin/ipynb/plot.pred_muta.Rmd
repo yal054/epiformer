@@ -1,0 +1,121 @@
+---
+title: "plot.pred_muta"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressPackageStartupMessages(library("data.table"))
+suppressPackageStartupMessages(library("plyr"))
+library(hues) # scale_colour_iwanthue()
+suppressPackageStartupMessages(library("RColorBrewer"))
+suppressPackageStartupMessages(library("viridis"))
+suppressPackageStartupMessages(library("ggplot2"))
+suppressPackageStartupMessages(library(scales))
+suppressPackageStartupMessages(library(reshape2))
+library("pvclust")
+library("dendsort")
+suppressPackageStartupMessages(library("pheatmap"))
+suppressPackageStartupMessages(library("ComplexHeatmap"))
+suppressPackageStartupMessages(library("circlize"))
+library("wesanderson")
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(dendextend))
+sort_hclust <- function(...) as.hclust(dendsort(as.dendrogram(...)))
+```
+
+
+```{r}
+#path2data <- "human.input10k.mean100kSeg128.MGC.8batch4accum.lr1e-4.phastCons.crop64.overallCorr.CosineWarmup.model-1661995844.peak_250632.muta_res.txt"
+#outprfx <- "human.input10k.mean100kSeg128.MGC.8batch4accum.lr1e-4.phastCons.crop64.overallCorr.CosineWarmup.model-1661995844.peak_250632.muta_res"
+
+path2data <- "human.input10k.mean100kSeg128.MGC.2gpu4batch16accum.lr1e-4.phastCons.crop64.overallCorr.CosineWarmup.Adam.model-1663637197.best_loss.peak_250632.muta_res.txt"
+outprfx <- "human.input10k.mean100kSeg128.MGC.2gpu4batch16accum.lr1e-4.phastCons.crop64.overallCorr.CosineWarmup.Adam.model-1663637197.best_loss.peak_250632.muta_res"
+
+```
+
+
+```{r}
+dat <- fread(path2data, sep="\t", header=T)
+dat <- as.data.frame(dat)
+dat$nuc <- factor(dat$nuc, levels = c('A', 'C', 'T', 'G'))
+
+# norm: 0 to 1, z-score
+range01 <- function(x){(x-min(x))/(max(x)-min(x))}
+
+dat.norm01 <- dat
+dat.norm01$alt2ref <- range01(dat.norm01$alt2ref)
+
+dat.d <- dcast(dat, index~nuc)
+rownames(dat.d) <- dat.d$index
+dat.d$index <- NULL
+
+dat.d.norm01 <- t(apply(dat.d, 1, range01))
+
+dat.normz <- dat
+dat.normz$alt2ref <- scale(dat.normz$alt2ref)
+
+# zoom in 
+dat.zoomin <- dat[which(dat$index %in% c(110:140)), ]
+dat.norm01.zoomin <- dat.norm01[which(dat.norm01$index %in% c(110:140)), ]
+dat.normz.zoomin <- dat.normz[which(dat.normz$index %in% c(110:140)), ]
+
+# plotting
+
+cols <- rev(colorRampPalette(brewer.pal(8,name="RdBu"))(30))
+#cols <- viridis(30)
+
+pdf(paste0(outprfx, ".headtmap.pdf"), width = 12, height = 2)
+pheatmap(t(dat.d), cluster_cols = F, cluster_rows = F, color = cols)
+pheatmap(t(dat.d[100:150, ]), cluster_cols = F, cluster_rows = F, color = cols)
+
+brks <- seq(-10,10,length.out=30)  
+pheatmap(t(dat.d), cluster_cols = F, cluster_rows = F, color = cols, breaks = brks)
+pheatmap(t(dat.d[100:150, ]), cluster_cols = F, cluster_rows = F, color = cols, breaks = brks)
+
+brks <- seq(-5,5,length.out=30) 
+pheatmap(t(dat.d), cluster_cols = F, cluster_rows = F, color = cols, breaks = brks)
+pheatmap(t(dat.d[100:150, ]), cluster_cols = F, cluster_rows = F, color = cols, breaks = brks)
+dev.off()
+
+```
+
+
+# test
+```{r}
+ggplot(dat, aes(index, nuc, fill= alt2ref)) + 
+  geom_tile() + 
+  scale_fill_viridis(30) +
+  theme_bw()
+
+ggplot(dat.norm01, aes(index, nuc, fill= alt2ref)) + 
+  geom_tile() + 
+  scale_fill_viridis(30) +
+  theme_bw()
+
+ggplot(dat.normz, aes(index, nuc, fill= alt2ref)) + 
+  geom_tile() + 
+  scale_fill_viridis(30) +
+  theme_bw()
+
+ggplot(dat.zoomin, aes(index, nuc, fill= alt2ref)) + 
+  geom_tile() + 
+  scale_fill_viridis(30) +
+  theme_bw()
+
+ggplot(dat.norm01.zoomin, aes(index, nuc, fill= alt2ref)) + 
+  geom_tile() + 
+  scale_fill_viridis(30) +
+  theme_bw()
+
+ggplot(dat.normz.zoomin, aes(index, nuc, fill= alt2ref)) + 
+  geom_tile() + 
+  scale_fill_viridis(30) +
+  theme_bw()
+
+pheatmap(dat.d.norm01, cluster_cols = F, cluster_rows = F, color = viridis(30))
+
+```

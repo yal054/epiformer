@@ -36,15 +36,14 @@ pip install -r requirements.txt
 - Provide peak calls (optional) under directory `./targets`. 
 - Generate one tab delimited text file ***targets.txt*** listing the path to every target file, such as:
 ```
-index   identifier      file    clip    sum_stat        description     peak
-0       HIP     path2targets/human.HIP.norm_cov.bw      128     mean    HIP     path2targets/human.HIP.bed
-1       ASCT    path2targets/human.ASCT.norm_cov.bw     128     mean    ASCT    path2targets/human.ASCT.bed
-2       OPC     path2targets/human.OPC.norm_cov.bw      128     mean    OPC     path2targets/human.OPC.bed
-3       OGC     path2targets/human.OGC.norm_cov.bw      128     mean    OGC     path2targets/human.OGC.bed
-4       MGC     path2targets/human.MGC.norm_cov.bw      128     mean    MGC     path2targets/human.MGC.bed
-5       VIP     path2targets/human.VIP.norm_cov.bw      128     mean    VIP     path2targets/human.VIP.bed
-6       ITL23   path2targets/human.ITL23.norm_cov.bw    128     mean    ITL23   path2targets/human.ITL23.bed
-7       ET      path2targets/human.ET.norm_cov.bw       128     mean    ET      path2targets/human.ET.bed
+index	identifier	file	clip	scale	sum_stat	description
+0	ASCT	ASCT.norm_cov.bw	128	1	mean	ASCT
+1	OPC	OPC.norm_cov.bw	128	1	mean	OPC
+2	OGC	OGC.norm_cov.bw	128	1	mean	OGC
+3	MGC	MGC.norm_cov.bw	128	1	mean	MGC
+4	VIP	VIP.norm_cov.bw	128	1	mean	VIP
+5	LAMP5	LAMP5.norm_cov.bw	128	1	mean	LAMP5
+...
 ```
 
 #### Step 1: Generate datasets
@@ -107,8 +106,8 @@ penalty = 0 # give penalty to loss function or not
 Here, we demonstrate the model training for microglia (MGC).
 
 ```
-celltype_list=("HIP" "ASCT" "OPC" "OGC" "MGC" "VIP" "ITL23" "ET")
-i=4
+celltype_list=("ASCT" "OPC" "OGC" "MGC" "VIP" "LAMP5" "PVALB" "SST" "MSN" "FOXP2" "ITL23" "ITL4" "ITL5" "ITL6" "ITL6_2" "CT" "L6B" "NP")
+i=3
 typename=${celltype_list[${i}]}
 
 path2dataset=datasets/
@@ -128,8 +127,8 @@ The current models were trained on 4 NVIDIA GeForce RTX 3090 (24GB) GPUs. Three 
 Here, we demonstrate the prediction centered at TSS of gene ***BIN1*** in microglia (MGC).
 
 ```
-celltype_list=("HIP" "ASCT" "OPC" "OGC" "MGC" "VIP" "ITL23" "ET")
-i=4
+celltype_list=("ASCT" "OPC" "OGC" "MGC" "VIP" "LAMP5" "PVALB" "SST" "MSN" "FOXP2" "ITL23" "ITL4" "ITL5" "ITL6" "ITL6_2" "CT" "L6B" "NP")
+i=3
 typename=${celltype_list[${i}]}
 
 seq_len=98304 

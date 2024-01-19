@@ -1,7 +1,7 @@
 # Epiformer
 
 11/11/2022 - This package is still actively updating!
-For more details, please check out our recent preprint ***A comparative atlas of single-cell chromatin accessibility in the human brain*** on [bioRxiv](https://www.biorxiv.org/content/10.1101/2022.11.09.515833v1).
+For more details, please check out our recent paper ***A comparative atlas of single-cell chromatin accessibility in the human brain*** (2023) [Science] (https://www.science.org/doi/full/10.1126/science.adf7044) 13;382(6667):eadf7044
 
 ### Introduction
 
@@ -149,7 +149,7 @@ python epiformer/pred_signals.py -m $path2model \
 
 ### Download link to pre-trained models
 
-The models pre-trained in this study: [http://catlas.org/catlas_downloads/humanbrain/epiformer_data/](http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/).
+The models pre-trained in this study: [http://catlas.org/catlas_downloads/humanbrain/epiformer_data/](http://catlas.org/catlas_downloads/humanbrain/epiformer_data/).
 
 We will keep updating these cell-type specific models.
 

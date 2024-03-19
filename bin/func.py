@@ -105,7 +105,7 @@ class HDF5Dataset(Dataset):
             signal = np.log2(signal, out=np.copy(signal), where=(signal>1))
         #signal = np.float32(np.log2(signal+1))
         
-        if self.which:
+        if self.which is not None:
             data_obj["signal"] = np.expand_dims(signal[self.which, :], axis=0)
         else:
             data_obj["signal"] = signal

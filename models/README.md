@@ -1,1 +1,1 @@
-#### Download models trained in this study from this link: [http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/](http://renlab.sdsc.edu/yangli/downloads/humanbrain/epiformer_data/)
+#### Download models trained in this study from this link: [https://decoder-genetics.wustl.edu/catlasv1/catlas_downloads/humanbrain/epiformer_data/](https://decoder-genetics.wustl.edu/catlasv1/catlas_downloads/humanbrain/epiformer_data/)
